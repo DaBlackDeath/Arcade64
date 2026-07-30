@@ -345,6 +345,13 @@ void mame_ui_manager::init()
 			"pointer_input",
 			configuration_manager::load_delegate(&mame_ui_manager::config_load_pointers, this),
 			configuration_manager::save_delegate(&mame_ui_manager::config_save_pointers, this));
+	
+	// Register slider configuration for persistence
+	machine().configuration().config_register(
+			"sliders",
+			configuration_manager::load_delegate(&mame_ui_manager::sliders_load, this),
+			configuration_manager::save_delegate(&mame_ui_manager::sliders_save, this)); // Slider save
+	
 
 	// create mouse bitmap
 	uint32_t *dst = &m_mouse_bitmap.pix(0);
@@ -656,8 +663,8 @@ void mame_ui_manager::display_startup_screens(bool first_time)
 {
 	const int maxstate = 3;
 	int const str = machine().options().seconds_to_run();
-	bool show_gameinfo = !machine().options().skip_gameinfo();
-	bool show_warnings = true;
+	bool show_gameinfo = false; //Nag removed
+	bool show_warnings = false; // Nag removed
 	bool video_none = strcmp(downcast<osd_options &>(machine().options()).video(), OSDOPTVAL_NONE) == 0;
 
 	// disable everything if we are using -str for 300 or fewer seconds, or if we're the empty driver,
@@ -2188,6 +2195,10 @@ std::vector<ui::menu_item> mame_ui_manager::slider_init(running_machine &machine
 		items.emplace_back(std::move(item));
 	}
 
+// Apply saved slider values
+sliders_apply(); // Slider save
+
+return items;
 	return items;
 }
 
@@ -2902,4 +2913,72 @@ void ui_colors::refresh(const ui_options &options)
 	m_mousedown_bg_color = options.mousedown_bg_color();
 	m_dipsw_color = options.dipsw_color();
 	m_slider_color = options.slider_color();
+}
+
+
+//-------------------------------------------------
+//  sliders_load - load slider values from config
+//-------------------------------------------------
+// Slider save
+void mame_ui_manager::sliders_load(config_type cfg_type, config_level cfg_level, util::xml::data_node const *parentnode)
+{
+	if (cfg_type != config_type::SYSTEM)
+		return;
+	if (parentnode == nullptr)
+		return;
+
+	for (util::xml::data_node const *slider_node = parentnode->get_child("slider"); 
+		 slider_node; slider_node = slider_node->get_next_sibling("slider"))
+	{
+		std::string desc = slider_node->get_attribute_string("desc", "");
+		int32_t saved_val = slider_node->get_attribute_int("value", 0);
+		slider_saved_alloc(std::move(desc), 0, saved_val, 0, 0, nullptr);
+	}
+}
+
+
+//-------------------------------------------------
+//  sliders_apply - apply saved slider values
+//-------------------------------------------------
+
+void mame_ui_manager::sliders_apply(void)
+{
+	for (auto &slider : m_sliders)
+	{
+		for (auto &slider_saved : m_sliders_saved)
+		{
+			if (!strcmp(slider->description.c_str(), slider_saved->description.c_str()))
+			{
+				std::string tempstring;
+				slider->update(&tempstring, slider_saved->defval);
+				break;
+			}
+		}
+	}
+}
+
+
+//-------------------------------------------------
+//  sliders_save - save slider values to config
+//-------------------------------------------------
+
+void mame_ui_manager::sliders_save(config_type cfg_type, util::xml::data_node *parentnode)
+{
+	if (cfg_type != config_type::SYSTEM)
+		return;
+
+	std::string tempstring;
+	for (auto &slider : m_sliders)
+	{
+		int32_t curval = slider->update(&tempstring, SLIDER_NOCHANGE);
+		if (curval != slider->defval)
+		{
+			util::xml::data_node *slider_node = parentnode->add_child("slider", nullptr);
+			if (slider_node)
+			{
+				slider_node->set_attribute("desc", slider->description.c_str());
+				slider_node->set_attribute_int("value", curval);
+			}
+		}
+	}
 }
