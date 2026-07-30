@@ -642,6 +642,7 @@ void rom_load_manager::verify_length_and_hash(emu_file *file, std::string_view n
 
 void rom_load_manager::display_loading_rom_message(const char *name, bool from_list)
 {
+	/*
 	std::string buffer;
 	if (name)
 		buffer = util::string_format("%s (%d%%)", from_list ? "Loading Software" : "Loading Machine", u32(100 * m_romsloadedsize / m_romstotalsize));
@@ -650,6 +651,7 @@ void rom_load_manager::display_loading_rom_message(const char *name, bool from_l
 
 	if (!machine().ui().is_menu_active())
 		machine().ui().set_startup_text(buffer.c_str(), false);
+	*/
 }
 
 
